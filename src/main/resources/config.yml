@@ -1,0 +1,13 @@
+game:
+  running: false
+  attempt: 0
+  hardcore: true
+  rescueEnabled: false
+  location:
+    x: 0
+    y: 0
+    z: 0
+timer:
+  running: false
+  seconds: 0
+players:

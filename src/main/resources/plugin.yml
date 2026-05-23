@@ -1,0 +1,12 @@
+name: SurvUtil
+version: '1.0'
+main: ikeyler.survutil.Main
+api-version: '1.21'
+commands:
+  join:
+  leave:
+  vote:
+    aliases: [v]
+  note:
+    aliases: [n]
+  notes:
