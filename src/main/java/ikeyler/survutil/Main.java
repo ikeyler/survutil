@@ -52,6 +52,7 @@ public final class Main extends JavaPlugin {
             for (GamePlayer player : configManager.getGamePlayers()) {
                 game.getPlayerManager().getPlayerList().put(player.getPlayerUUID(), player);
             }
+            configManager.resetGamePlayers();
             logger.info("added " + game.getPlayerManager().getPlayerList().size() + " players to the game");
         }
         else timer.setInfoLabel("§7§oНачните игру, введя §e§o/vote");
