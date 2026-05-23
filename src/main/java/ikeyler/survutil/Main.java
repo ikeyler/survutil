@@ -4,6 +4,7 @@ import ikeyler.survutil.commands.*;
 import ikeyler.survutil.game.ActionBarTimer;
 import ikeyler.survutil.game.Game;
 import ikeyler.survutil.game.player.GamePlayer;
+import org.bukkit.entity.Entity;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -58,7 +59,7 @@ public final class Main extends JavaPlugin {
     @Override
     public void onDisable() {
         HandlerList.unregisterAll(this);
-        game.clearPlayerCorpses();
+        game.getCorpseManager().clearPlayerCorpses();
         if (game.isRunning() && game.getBarTimer().isTimerRunning()) {
             configManager.saveGame(true, game.getAttempt(), game.getGameSettings().hardcore(), game.getGameSettings().isRescueEnabled(), game.getStartLocation());
             configManager.saveGamePlayers(new ArrayList<>(game.getPlayerManager().getPlayerList().values()));

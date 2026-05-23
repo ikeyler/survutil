@@ -19,6 +19,8 @@ public class GameEventHandler implements Listener {
     private final Game game;
     public GameEventHandler(Game game) {
         this.game = game;
+    }
+    public void register() {
         Bukkit.getPluginManager().registerEvents(this, Main.getInstance());
     }
     @EventHandler
@@ -30,7 +32,7 @@ public class GameEventHandler implements Listener {
             event.getEntity().setGameMode(GameMode.SPECTATOR);
             gamePlayer.setAlive(false);
             if (!game.getPlayerManager().getAlivePlayers().isEmpty()) {
-                game.createPlayerCorpse(event.getEntity(), event.getEntity().getLocation());
+                game.getCorpseManager().createPlayerCorpse(event.getEntity(), event.getEntity().getLocation());
                 if (gamePlayer.isRescueAvailable() && game.getGameSettings().isRescueEnabled()) {
                     gamePlayer.setState(PlayerState.RESCUING);
                     Bukkit.broadcastMessage("Один из игроков умер! Возродите его, используя §eдва тотема бессмертия §fв течение §e5 минут");
@@ -60,7 +62,7 @@ public class GameEventHandler implements Listener {
             }
         }
         else if (game.isRunning()) {
-            player.sendMessage("Вы не участник игры. Войдите, используя §e.join");
+            player.sendMessage("Вы не участник игры. Войдите, используя §e/join");
         }
     }
     @EventHandler
@@ -81,7 +83,7 @@ public class GameEventHandler implements Listener {
     }
     @EventHandler
     public void onEntityDamaged(EntityDamageEvent event) {
-        if (game.getPlayerCorpses().contains(event.getEntity()))
+        if (game.getCorpseManager().getPlayerCorpses().contains(event.getEntity()))
             event.setCancelled(true);
     }
 }

@@ -10,17 +10,40 @@ import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static ikeyler.survutil.Util.revokeAdvancements;
+
 public class PlayerManager {
     private final Game game;
     private final Map<UUID, GamePlayer> playerList = new HashMap<>();
     public PlayerManager(Game game) {
         this.game = game;
     }
+    public void resetPlayers(Location startLocation) {
+        Bukkit.getOnlinePlayers().forEach(player -> resetPlayer(player, startLocation));
+    }
+    public void resetPlayer(Player player, Location location) {
+        if (!game.containsPlayer(player.getUniqueId())) return;
+        player.setGameMode(GameMode.SURVIVAL);
+        player.closeInventory();
+        player.setItemOnCursor(null);
+        player.getInventory().setItemInOffHand(null);
+        player.getInventory().clear();
+        player.getEnderChest().clear();
+        player.setExp(0);
+        player.getActivePotionEffects().clear();
+        player.setHealth(20);
+        player.setFoodLevel(20);
+        player.setSaturation(20);
+        player.setFallDistance(0);
+        player.setFireTicks(0);
+        player.teleport(location);
+        revokeAdvancements(player);
+    }
     public boolean addPlayer(Player player) {
         if (!game.isRunning()) return false;
         if (playerList.containsKey(player.getUniqueId())) return false;
         playerList.put(player.getUniqueId(), new GamePlayer(game, player));
-        game.resetPlayer(player, game.getStartLocation());
+        resetPlayer(player, game.getStartLocation());
         return true;
     }
     public void addOnlinePlayers() {
@@ -56,7 +79,7 @@ public class PlayerManager {
             gamePlayer.setAlive(true);
             gamePlayer.setState(PlayerState.PLAYING);
             Bukkit.broadcastMessage(String.format("§e%s §fбыл возрожден!", player.getName()));
-            if (location == null) game.resetPlayer(player, game.getStartLocation());
+            if (location == null) resetPlayer(player, game.getStartLocation());
             else player.teleport(location);
         }
     }

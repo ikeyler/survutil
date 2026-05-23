@@ -26,12 +26,13 @@ public class PlayerRescueTask extends BukkitRunnable {
     @Override
     public void run() {
         game.getPlayerManager().getOnlinePlayers().forEach(gamePlayer -> updatePlayer(gamePlayer.getPlayer()));
-        if (game.isRunning() && !game.getPlayerCorpses().isEmpty() && !rescuersList.isEmpty()) {
+        List<Entity> playerCorpses = game.getCorpseManager().getPlayerCorpses();
+        if (game.isRunning() && !playerCorpses.isEmpty() && !rescuersList.isEmpty()) {
             for (UUID uuid : rescuersList) {
                 Player rescuer = Bukkit.getPlayer(uuid);
                 if (rescuer == null) continue;
                 corpsesToRemove.clear();
-                for (Entity corpse : game.getPlayerCorpses()) {
+                for (Entity corpse : playerCorpses) {
                     double distance = rescuer.getLocation().distance(corpse.getLocation());
                     if (distance <= maxRescueDistance) {
                         UUID rescuedUUID;
@@ -45,7 +46,7 @@ public class PlayerRescueTask extends BukkitRunnable {
                         if (rescuedPlayer == null || !rescuedPlayer.isRescueAvailable()) continue;
                         int progress = rescuedPlayer.getRescueProgress() + rescueProgressStep;
                         if (progress <= 100) {
-                            Util.drawParticleLine(rescuer.getLocation(), corpse.getLocation(), Particle.CLOUD);
+                            Util.drawParticleLine(rescuer.getLocation(), corpse.getLocation().add(0, 1, 0), Particle.CLOUD);
                             rescuedPlayer.setRescueProgress(progress);
                             rescuer.sendMessage(String.format("Возрождение §e%s§f... §7(%d%%)",
                                     rescuedPlayer.getPlayer().getName(), progress));
@@ -62,7 +63,7 @@ public class PlayerRescueTask extends BukkitRunnable {
                         }
                     }
                 }
-                game.getPlayerCorpses().removeAll(corpsesToRemove);
+                playerCorpses.removeAll(corpsesToRemove);
             }
         }
     }

@@ -5,13 +5,10 @@ import ikeyler.survutil.Util;
 import ikeyler.survutil.game.notes.NoteManager;
 import ikeyler.survutil.game.player.GamePlayer;
 import ikeyler.survutil.game.player.PlayerManager;
-import ikeyler.survutil.game.player.PlayerState;
 import ikeyler.survutil.game.voting.Vote;
 import ikeyler.survutil.game.voting.VoteManager;
 import org.bukkit.*;
-import org.bukkit.block.Block;
 import org.bukkit.entity.*;
-import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.Plugin;
 
 import java.time.Duration;
@@ -22,25 +19,24 @@ import java.util.logging.Logger;
 import static ikeyler.survutil.Util.*;
 
 public class Game {
+    private final Plugin plugin = Main.getInstance();
     private final Logger logger = Main.getLog();
     private static Game instance;
+    private boolean running = false;
     private int gameId = 0;
-    private final GameTask gameTask;
-    private final PlayerRescueTask playerRespawnTask;
-    private boolean running;
+    private int attempt = 0;
+    private final WorldManager worldManager = new WorldManager();
     private final PlayerManager playerManager;
+    private final CorpseManager corpseManager;
     private GameSettings gameSettings;
     private final VoteManager voteManager;
     private final NoteManager noteManager;
+    private final LocationFinder locationFinder;
     private final GameEventHandler eventHandler;
-    private final Plugin plugin = Main.getInstance();
-    private final Random random = new Random();
-    private int attempt = 0;
-    private final int locationSearchRadius = 30000;
-    private final int locationOffsetRadius = 3500;
-    private final List<Entity> playerCorpses = new ArrayList<>();
     private final ActionBarTimer barTimer;
     private final ItemTracker itemTracker;
+    private final GameTask gameTask;
+    private final PlayerRescueTask playerRespawnTask;
     private Location lastStartLocation = null;
     private Game() {
         this.barTimer = new ActionBarTimer(this);
@@ -49,12 +45,14 @@ public class Game {
         this.voteManager = new VoteManager(this);
         this.noteManager = new NoteManager();
         this.playerManager = new PlayerManager(this);
+        this.corpseManager = new CorpseManager(this);
         this.eventHandler = new GameEventHandler(this);
-        this.running = false;
+        this.locationFinder = new LocationFinder(this);
         this.gameTask = new GameTask(this);
         this.gameTask.start();
         this.playerRespawnTask = new PlayerRescueTask(this);
         this.playerRespawnTask.start();
+        eventHandler.register();
         getVote("restart").start();
     }
     public static Game getInstance() {
@@ -67,7 +65,7 @@ public class Game {
         getVote("restart").start();
         Bukkit.getScheduler().runTask(plugin, () -> {
             Instant locStartTime = Instant.now();
-            Location startLocation = findGameLocation(resolveLocation(centerLoc));
+            Location startLocation = locationFinder.findGameLocation(locationFinder.resolveLocation(centerLoc));
             if (startLocation == null) {
                 Bukkit.broadcastMessage("§cНе удалось найти локацию для спавна. Попробуйте снова");
                 return;
@@ -81,10 +79,10 @@ public class Game {
             World world = startLocation.getWorld();
             int chunkX = (int) startLocation.getX() >> 4;
             int chunkZ = (int) startLocation.getZ() >> 4;
-            preloadChunks(world, chunkX, chunkZ);
+            worldManager.preloadChunks(world, chunkX, chunkZ);
             world.setSpawnLocation(startLocation);
-            Bukkit.getWorlds().forEach(this::resetWorld);
-            Bukkit.getServer().getOnlinePlayers().forEach(player -> resetPlayer(player, startLocation));
+            worldManager.resetWorlds(gameSettings);
+            playerManager.resetPlayers(startLocation);
             if (gameSettings.getType() == GameType.ITEM_SPEEDRUN) {
                 itemTracker.setItem(gameSettings.getMaterial());
                 itemTracker.start();
@@ -108,7 +106,7 @@ public class Game {
         barTimer.reset();
         noteManager.clearNotes();
         itemTracker.stop();
-        clearPlayerCorpses();
+        corpseManager.clearPlayerCorpses();
     }
     public void stopGame() {
         if (!running) return;
@@ -116,100 +114,6 @@ public class Game {
         int gameTime = barTimer.getSeconds();
         resetGame();
         barTimer.setInfoLabel(String.format("§7§oИгра завершена §7• §c%s §7• §e/vote", Util.formatTime(gameTime)));
-    }
-    private void preloadChunks(World world, int chunkX, int chunkZ) {
-        for (int cx = -1; cx <= 1; cx++) {
-            for (int cz = -1; cz <= 1; cz++) {
-                world.getChunkAt(chunkX + cx, chunkZ + cz).load(true);
-            }
-        }
-    }
-    private Location resolveLocation(Location location) {
-        if (location != null) return location;
-        if (lastStartLocation != null) return lastStartLocation;
-        return new Location(Bukkit.getWorlds().getFirst(), 0, 0, 0);
-    }
-    public Location findGameLocation(Location centerLoc) {
-        if (centerLoc == null) return null;
-        World world = centerLoc.getWorld();
-        int centerX = (int) centerLoc.getX();
-        int centerZ = (int) centerLoc.getZ();
-        logger.info("started finding game location");
-        for (int i = 0; i < 15; i++) {
-            int randX = centerX + random.nextInt(-locationSearchRadius, locationSearchRadius);
-            int randZ = centerZ + random.nextInt(-locationSearchRadius, locationSearchRadius);
-            int dx = randX - centerX;
-            int dz = randZ - centerZ;
-            int distance = (int) Math.sqrt(dx * dx + dz * dz);
-            if (distance < locationOffsetRadius) continue;
-            world.loadChunk(randX >> 4, randZ >> 4);
-            Block yBlock = world.getHighestBlockAt(randX, randZ);
-            if (!yBlock.isLiquid()) {
-                return new Location(world, randX, yBlock.getY() + 1, randZ);
-            }
-        }
-        return null;
-    }
-    private void resetWorld(World world) {
-        world.setTime(0L);
-        world.setStorm(false);
-        world.setThundering(false);
-        if (gameSettings.hardcore()) {
-            world.setDifficulty(Difficulty.HARD);
-        }
-        world.setHardcore(gameSettings.hardcore());
-    }
-    public void resetPlayer(Player player, Location location) {
-        if (!containsPlayer(player.getUniqueId())) return;
-        player.setGameMode(GameMode.SURVIVAL);
-        player.closeInventory();
-        player.setItemOnCursor(null);
-        player.getInventory().setItemInOffHand(null);
-        player.getInventory().clear();
-        player.getEnderChest().clear();
-        player.setExp(0);
-        player.getActivePotionEffects().clear();
-        player.setHealth(20);
-        player.setFoodLevel(20);
-        player.setSaturation(20);
-        player.setFallDistance(0);
-        player.setFireTicks(0);
-        player.teleport(location);
-        revokeAdvancements(player);
-    }
-    public void createPlayerCorpse(Player player, Location location) {
-        int currentId = this.gameId;
-        World world = location.getWorld();
-        int chunkX = (int) location.getX() >> 4;
-        int chunkZ = (int) location.getZ() >> 4;
-        world.setChunkForceLoaded(chunkX, chunkZ, true);
-        Husk corpse = (Husk) world.spawnEntity(location, EntityType.HUSK);
-        corpse.setCustomName(player.getName());
-        corpse.setMetadata("player_uuid", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
-        corpse.setAdult();
-        corpse.setInvisible(true);
-        corpse.setInvulnerable(true);
-        corpse.setAI(false);
-        corpse.setSilent(true);
-        corpse.setGravity(false);
-        corpse.setGlowing(true);
-        corpse.setCollidable(false);
-        corpse.setCanPickupItems(false);
-        corpse.getEquipment().clear();
-        playerCorpses.add(corpse);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            corpse.remove();
-            playerCorpses.remove(corpse);
-            world.setChunkForceLoaded(chunkX, chunkZ, false);
-            if (currentId != this.gameId) return;
-            if (running && containsPlayer(player.getUniqueId())) {
-                GamePlayer gamePlayer = getGamePlayer(player.getUniqueId());
-                if (!gamePlayer.isAlive()) {
-                    gamePlayer.setRescueAvailable(false);
-                    gamePlayer.setState(PlayerState.SPECTATING);
-                    Bukkit.broadcastMessage(String.format("Спасти игрока §e%s §fне удалось - никто не пришел", player.getName()));
-                }
-            }}, 6000L);
     }
     private String buildStartMessage(Location location) {
         String delimiter = "§8§m----------";
@@ -266,6 +170,9 @@ public class Game {
     public PlayerManager getPlayerManager() {
         return playerManager;
     }
+    public CorpseManager getCorpseManager() {
+        return corpseManager;
+    }
     public GamePlayer getGamePlayer(UUID uuid) {
         return playerManager.getPlayerList().get(uuid);
     }
@@ -284,18 +191,5 @@ public class Game {
                 itemTracker.start();
         }
         this.gameSettings = gameSettings;
-    }
-    public List<Entity> getPlayerCorpses() {
-        return playerCorpses;
-    }
-    public void clearPlayerCorpses() {
-        for (Entity corpse : playerCorpses) {
-            Chunk chunk = corpse.getLocation().getChunk();
-            if (!chunk.isLoaded()) {
-                chunk.load();
-            }
-            corpse.remove();
-        }
-        playerCorpses.clear();
     }
 }

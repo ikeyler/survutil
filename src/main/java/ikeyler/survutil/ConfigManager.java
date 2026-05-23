@@ -1,5 +1,6 @@
 package ikeyler.survutil;
 
+import ikeyler.survutil.game.CorpseManager;
 import ikeyler.survutil.game.Game;
 import ikeyler.survutil.game.player.GamePlayer;
 import ikeyler.survutil.game.player.PlayerState;
@@ -8,6 +9,7 @@ import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -123,6 +125,17 @@ public class ConfigManager {
         saveConfig();
         Main.getLog().info("saved " + players.size() + " players");
     }
+    public void savePlayerCorpses(List<Entity> corpses) {
+        for (Entity corpse : corpses) {
+            String path = "corpses." + corpse.getUniqueId();
+            config.set(path + ".player", CorpseManager.getCorpsePlayerUUID(corpse));
+            config.set(path + ".x", corpse.getLocation().getX());
+            config.set(path + ".y", corpse.getLocation().getY());
+            config.set(path + ".z", corpse.getLocation().getX());
+        }
+        saveConfig();
+        Main.getLog().info("saved " + corpses.size() + " corpses");
+    }
     public void saveTimer(boolean running, int seconds) {
         config.set("timer.running", running);
         config.set("timer.seconds", seconds);
@@ -145,6 +158,10 @@ public class ConfigManager {
     }
     public void resetGamePlayers() {
         config.set("players", null);
+        saveConfig();
+    }
+    public void resetPlayerCorpses() {
+        config.set("corpses", null);
         saveConfig();
     }
 }

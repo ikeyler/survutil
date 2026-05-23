@@ -34,7 +34,7 @@ public class ChatListener implements Listener {
         Player player = event.getPlayer();
         switch (cmd) {
             case ".c":
-                Bukkit.getScheduler().runTask(plugin, () -> game.createPlayerCorpse(player, player.getLocation()));
+                Bukkit.getScheduler().runTask(plugin, () -> game.getCorpseManager().createPlayerCorpse(player, player.getLocation()));
                 break;
             case ".restart":
                 Bukkit.getScheduler().runTask(plugin, () -> game.restartGame(player.getLocation()));
