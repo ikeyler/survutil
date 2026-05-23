@@ -64,6 +64,7 @@ public class Game {
         return instance;
     }
     public void restartGame(Location centerLoc) {
+        getVote("restart").start();
         Bukkit.getScheduler().runTask(plugin, () -> {
             Instant locStartTime = Instant.now();
             Location startLocation = findGameLocation(resolveLocation(centerLoc));
