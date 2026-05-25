@@ -29,6 +29,7 @@ public class PlayerManager {
         player.getInventory().setItemInOffHand(null);
         player.getInventory().clear();
         player.getEnderChest().clear();
+        player.setTotalExperience(0);
         player.setExp(0);
         player.getActivePotionEffects().clear();
         player.setHealth(20);
@@ -46,10 +47,18 @@ public class PlayerManager {
         resetPlayer(player, game.getStartLocation());
         return true;
     }
+    public void loadPlayers(List<GamePlayer> players) {
+        for (GamePlayer player : players) {
+            playerList.put(player.getPlayerUUID(), player);
+            Player onlinePlayer = Bukkit.getPlayer(player.getPlayerUUID());
+            if (onlinePlayer != null) {
+                player.updatePlayer(onlinePlayer);
+            }
+        }
+    }
     public void addOnlinePlayers() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             GamePlayer gamePlayer = new GamePlayer(game, player);
-            gamePlayer.setState(PlayerState.PLAYING);
             playerList.put(player.getUniqueId(), gamePlayer);
         }
     }
@@ -70,15 +79,24 @@ public class PlayerManager {
         return playerList;
     }
     public void respawnPlayer(Player player, Location location) {
-        if (!playerList.containsKey(player.getUniqueId()))
-            addPlayer(player);
+        if (!playerList.containsKey(player.getUniqueId())) return;
+        String playerName = player.getName();
         GamePlayer gamePlayer = getGamePlayer(player.getUniqueId());
+        player = Bukkit.getPlayer(player.getUniqueId());
+        if (player == null || !player.isOnline()) {
+            gamePlayer.setPendingRespawn(true, location);
+            Bukkit.broadcastMessage(String.format("§e§o%s §7§oвозродится после захода на сервер", playerName));
+            return;
+        }
         if (game.isRunning()) {
+            if (gamePlayer.isPendingRespawn()) {
+                gamePlayer.setPendingRespawn(false, null);
+            }
             player.setGameMode(GameMode.SURVIVAL);
             player.spigot().respawn();
             gamePlayer.setAlive(true);
             gamePlayer.setState(PlayerState.PLAYING);
-            Bukkit.broadcastMessage(String.format("§e%s §fбыл возрожден!", player.getName()));
+            Bukkit.broadcastMessage(String.format("§e%s §fбыл возрожден!", playerName));
             if (location == null) resetPlayer(player, game.getStartLocation());
             else player.teleport(location);
         }

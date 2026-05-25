@@ -32,8 +32,8 @@ public class GameEventHandler implements Listener {
             event.getEntity().setGameMode(GameMode.SPECTATOR);
             gamePlayer.setAlive(false);
             if (!game.getPlayerManager().getAlivePlayers().isEmpty()) {
-                game.getCorpseManager().createPlayerCorpse(event.getEntity(), event.getEntity().getLocation());
                 if (gamePlayer.isRescueAvailable() && game.getGameSettings().isRescueEnabled()) {
+                    game.getCorpseManager().createPlayerCorpse(event.getEntity(), event.getEntity().getLocation());
                     gamePlayer.setState(PlayerState.RESCUING);
                     Bukkit.broadcastMessage("Один из игроков умер! Возродите его, используя §eдва тотема бессмертия §fв течение §e5 минут");
                 }
@@ -56,9 +56,16 @@ public class GameEventHandler implements Listener {
             if (gamePlayer.getPlayer() == null) {
                 gamePlayer.updatePlayer(player);
             }
+            if (gamePlayer.isPendingRespawn()) {
+                game.getPlayerManager().respawnPlayer(player, gamePlayer.getPendingRespawnLoc());
+            }
             if (gamePlayer.isAlive()) {
                 gamePlayer.setState(PlayerState.PLAYING);
                 player.sendMessage("Вы вернулись в игру");
+            }
+            else if (gamePlayer.getState() == PlayerState.SPECTATING) {
+                gamePlayer.setState(PlayerState.SPECTATING);
+                player.sendMessage("Вы вернулись в игру как наблюдатель");
             }
         }
         else if (game.isRunning()) {
@@ -70,8 +77,7 @@ public class GameEventHandler implements Listener {
         Player player = event.getPlayer();
         if (game.containsPlayer(player.getUniqueId())) {
             GamePlayer gamePlayer = game.getGamePlayer(player.getUniqueId());
-            if (gamePlayer.isPlaying())
-                game.getGamePlayer(player.getUniqueId()).setState(PlayerState.OFFLINE);
+            gamePlayer.setState(PlayerState.OFFLINE);
         }
     }
     @EventHandler

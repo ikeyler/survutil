@@ -1,15 +1,14 @@
 package ikeyler.survutil;
 
-import ikeyler.survutil.game.CorpseManager;
 import ikeyler.survutil.game.Game;
 import ikeyler.survutil.game.player.GamePlayer;
 import ikeyler.survutil.game.player.PlayerState;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -95,6 +94,19 @@ public class ConfigManager {
                 gamePlayer.setAlive(config.getBoolean(path + ".alive"));
                 gamePlayer.setRescueAvailable(config.getBoolean(path + ".rescueAvailable"));
                 gamePlayer.setState(PlayerState.valueOf(config.getString(path + ".state")));
+                gamePlayer.setCanJoinGame(config.getBoolean(path + ".canJoinGame"));
+                if (config.isConfigurationSection(path + ".pendingRespawnLoc")) {
+                    World world = Bukkit.getWorld(config.getString(path + "pendingRespawnLoc.world"));
+                    if (world == null) Main.getLog().warning("invalid world in config setting pendingRespawnLoc.world for " + uuid);
+                    else {
+                        gamePlayer.setPendingRespawn(config.getBoolean(path + ".pendingRespawn"), new Location(
+                                world,
+                                config.getDouble(path + "pendingRespawnLoc.x"),
+                                config.getDouble(path + "pendingRespawnLoc.y"),
+                                config.getDouble(path + "pendingRespawnLoc.z")
+                        ));
+                    }
+                }
                 players.add(gamePlayer);
                 Main.getLog().info("added " + uuid + " to the game");
             }
@@ -121,20 +133,20 @@ public class ConfigManager {
             config.set(path + ".alive", player.isAlive());
             config.set(path + ".rescueAvailable", player.isRescueAvailable());
             config.set(path + ".state", player.getState().toString());
+            config.set(path + ".canJoinGame", player.canJoinGame());
+            config.set(path + ".pendingRespawn", player.isPendingRespawn());
+            if (player.getPendingRespawnLoc() != null) {
+                config.set(path + ".pendingRespawnLoc.world", player.getPendingRespawnLoc().getWorld().getName());
+                config.set(path + ".pendingRespawnLoc.x", player.getPendingRespawnLoc().getX());
+                config.set(path + ".pendingRespawnLoc.y", player.getPendingRespawnLoc().getY());
+                config.set(path + ".pendingRespawnLoc.z", player.getPendingRespawnLoc().getZ());
+            }
+            else {
+                config.set(path + ".pendingRespawnLoc", null);
+            }
         }
         saveConfig();
         Main.getLog().info("saved " + players.size() + " players");
-    }
-    public void savePlayerCorpses(List<Entity> corpses) {
-        for (Entity corpse : corpses) {
-            String path = "corpses." + corpse.getUniqueId();
-            config.set(path + ".player", CorpseManager.getCorpsePlayerUUID(corpse));
-            config.set(path + ".x", corpse.getLocation().getX());
-            config.set(path + ".y", corpse.getLocation().getY());
-            config.set(path + ".z", corpse.getLocation().getX());
-        }
-        saveConfig();
-        Main.getLog().info("saved " + corpses.size() + " corpses");
     }
     public void saveTimer(boolean running, int seconds) {
         config.set("timer.running", running);
@@ -158,10 +170,6 @@ public class ConfigManager {
     }
     public void resetGamePlayers() {
         config.set("players", null);
-        saveConfig();
-    }
-    public void resetPlayerCorpses() {
-        config.set("corpses", null);
         saveConfig();
     }
 }

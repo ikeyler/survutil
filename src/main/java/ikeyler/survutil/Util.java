@@ -83,4 +83,17 @@ public class Util {
             world.spawnParticle(particle, point, 1, 0, 0, 0, 0);
         }
     }
+    public static UUID getUuid(String uuid) {
+        try {
+            return UUID.fromString(uuid);
+        }
+        catch (Exception e) {
+            return null;
+        }
+    }
+    public static boolean containsPlayerUuid(UUID uuid) {
+        if (uuid == null) return false;
+        OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+        return player.hasPlayedBefore();
+    }
 }

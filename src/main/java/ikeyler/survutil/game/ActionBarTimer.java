@@ -3,6 +3,7 @@ package ikeyler.survutil.game;
 import ikeyler.survutil.Util;
 import ikeyler.survutil.game.player.GamePlayer;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +13,7 @@ public class ActionBarTimer {
     private int seconds = 0;
     private boolean running = false;
     private boolean showInfoMode = false;
-    private String deathSkullColor = "§c";
+    private String redFlashingColor = "§c";
     private String abarInfo;
     public ActionBarTimer(Game game) {
         this.game = game;
@@ -41,14 +42,26 @@ public class ActionBarTimer {
 
     private List<String> getIcons() {
         List<String> icons = new ArrayList<>();
+        redFlashingColor = redFlashingColor.equals("§c") ? "§4" : "§c";
         if (Util.getSleepingPlayers() > 0)
             icons.add(String.format("§3Zzz§f (%s/%s)", Util.getSleepingPlayers(), Util.getAbleToSleepPlayers()));
+        if (!game.getPlayerManager().getOnlinePlayers().isEmpty()) {
+            for (GamePlayer gamePlayer : game.getPlayerManager().getOnlinePlayers()) {
+                Player player = gamePlayer.getPlayer();
+                double health = player.getHealth();
+                if (health > 0 && health < 4) {
+                    String heart = redFlashingColor + "\uD83D\uDC94§7 ";
+                    icons.add(heart + player.getName());
+                }
+            }
+        }
         if (!game.getPlayerManager().getRescuingPlayers().isEmpty()) {
-            deathSkullColor = deathSkullColor.equals("§c") ? "§4" : "§c";
-            String skull = deathSkullColor + "☠§7 ";
+            String skull = redFlashingColor + "☠§7 ";
             List<GamePlayer> players = game.getPlayerManager().getRescuingPlayers();
             for (GamePlayer player : players) {
-                icons.add(skull + player.getPlayer().getName());
+                if (player.getPlayer() != null) {
+                    icons.add(skull + player.getPlayer().getName());
+                }
             }
         }
         return icons;

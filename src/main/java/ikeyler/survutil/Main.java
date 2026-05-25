@@ -4,7 +4,7 @@ import ikeyler.survutil.commands.*;
 import ikeyler.survutil.game.ActionBarTimer;
 import ikeyler.survutil.game.Game;
 import ikeyler.survutil.game.player.GamePlayer;
-import org.bukkit.entity.Entity;
+import ikeyler.survutil.game.player.PlayerState;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -49,19 +49,21 @@ public final class Main extends JavaPlugin {
                     configManager.getGameLocation(),
                     configManager.getTimerSeconds()
             );
-            for (GamePlayer player : configManager.getGamePlayers()) {
-                game.getPlayerManager().getPlayerList().put(player.getPlayerUUID(), player);
-            }
+            game.getPlayerManager().loadPlayers(configManager.getGamePlayers());
             configManager.resetGamePlayers();
             logger.info("added " + game.getPlayerManager().getPlayerList().size() + " players to the game");
+            game.getCorpseManager().loadCorpses();
         }
         else timer.setInfoLabel("§7§oНачните игру, введя §e§o/vote");
     }
     @Override
     public void onDisable() {
         HandlerList.unregisterAll(this);
-        game.getCorpseManager().clearPlayerCorpses();
+        game.getCorpseManager().updateCorpses();
         if (game.isRunning() && game.getBarTimer().isTimerRunning()) {
+            for (GamePlayer gamePlayer : game.getPlayerManager().getOnlinePlayers()) {
+                gamePlayer.setState(PlayerState.OFFLINE);
+            }
             configManager.saveGame(true, game.getAttempt(), game.getGameSettings().hardcore(), game.getGameSettings().isRescueEnabled(), game.getStartLocation());
             configManager.saveGamePlayers(new ArrayList<>(game.getPlayerManager().getPlayerList().values()));
             configManager.saveTimer(true, game.getBarTimer().getSeconds());

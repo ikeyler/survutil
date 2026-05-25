@@ -1,17 +1,16 @@
 package ikeyler.survutil.game;
 
 import ikeyler.survutil.Main;
+import ikeyler.survutil.Util;
 import ikeyler.survutil.game.player.GamePlayer;
 import ikeyler.survutil.game.player.PlayerState;
-import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
-import org.bukkit.Location;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Husk;
 import org.bukkit.entity.Player;
 import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
@@ -22,21 +21,24 @@ public class CorpseManager {
     private final Game game;
     private final List<Entity> playerCorpses = new ArrayList<>();
     private final Plugin plugin = Main.getInstance();
+    private final NamespacedKey pidKey = new NamespacedKey(plugin, "player_uuid");
     public CorpseManager(Game game) {
         this.game = game;
     }
     public void createPlayerCorpse(Player player, Location location) {
         int currentId = game.getGameId();
         World world = location.getWorld();
-        int chunkX = (int) location.getX() >> 4;
-        int chunkZ = (int) location.getZ() >> 4;
-        world.setChunkForceLoaded(chunkX, chunkZ, true);
+        int chunkX = location.getBlockX() >> 4;
+        int chunkZ = location.getBlockZ() >> 4;
+        Chunk chunk = world.getChunkAt(chunkX, chunkZ);
+        if (!chunk.isLoaded()) {
+            chunk.load(true);
+        }
+        chunk.setForceLoaded(true);
         Husk corpse = createCorpseEntity(player, location);
         playerCorpses.add(corpse);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            corpse.remove();
-            playerCorpses.remove(corpse);
-            world.setChunkForceLoaded(chunkX, chunkZ, false);
+            removeCorpse(corpse);
             if (currentId != game.getGameId()) return;
             if (game.isRunning() && game.containsPlayer(player.getUniqueId())) {
                 GamePlayer gamePlayer = game.getGamePlayer(player.getUniqueId());
@@ -51,7 +53,7 @@ public class CorpseManager {
         World world = location.getWorld();
         Husk corpse = (Husk) world.spawnEntity(location, EntityType.HUSK);
         corpse.setCustomName(player.getName());
-        corpse.setMetadata("player_uuid", new FixedMetadataValue(plugin, player.getUniqueId().toString()));
+        corpse.getPersistentDataContainer().set(pidKey, PersistentDataType.STRING, player.getUniqueId().toString());
         corpse.setAdult();
         corpse.setInvisible(true);
         corpse.setInvulnerable(true);
@@ -62,35 +64,52 @@ public class CorpseManager {
         corpse.setCollidable(false);
         corpse.setCanPickupItems(false);
         corpse.getEquipment().clear();
+        corpse.setRemoveWhenFarAway(false);
+        corpse.setPersistent(true);
         return corpse;
     }
-    public Entity getCorpse(UUID uuid) {
-        if (playerCorpses.isEmpty()) return null;
-        for (Entity corpse : playerCorpses) {
-            if (uuid.equals(getCorpsePlayerUUID(corpse))) return corpse;
+    public void loadCorpses() {
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity entity : world.getEntities()) {
+                if (!(entity instanceof Husk)) continue;
+                if (!entity.getPersistentDataContainer().has(pidKey, PersistentDataType.STRING)) continue;
+                UUID playerId = Util.getUuid(entity.getPersistentDataContainer().get(pidKey, PersistentDataType.STRING));
+                if (playerId != null && game.containsPlayer(playerId) && game.getGamePlayer(playerId).isRescueAvailable()) {
+                    playerCorpses.add(entity);
+                }
+            }
         }
-        return null;
     }
-    public static UUID getCorpsePlayerUUID(Entity corpse) {
-        if (!corpse.hasMetadata("player_uuid")) return null;
-        try {
-            return UUID.fromString(corpse.getMetadata("player_uuid").getFirst().asString());
+    public void updateCorpses() {
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity entity : world.getEntities()) {
+                if (!(entity instanceof Husk)) continue;
+                if (!entity.getPersistentDataContainer().has(pidKey, PersistentDataType.STRING)) continue;
+                UUID playerId = Util.getUuid(entity.getPersistentDataContainer().get(pidKey, PersistentDataType.STRING));
+                if (!game.isRunning() || playerId == null || !game.containsPlayer(playerId) || !game.getGamePlayer(playerId).isRescueAvailable()) {
+                    removeCorpse(entity);
+                }
+            }
         }
-        catch (Exception e) {
-            return null;
+    }
+    public void removeCorpse(Entity corpse) {
+        if (corpse == null) return;
+        playerCorpses.remove(corpse);
+        if (!corpse.isDead()) {
+            Location loc = corpse.getLocation();
+            World world = loc.getWorld();
+            int chunkX = loc.getBlockX() >> 4;
+            int chunkZ = loc.getBlockZ() >> 4;
+            corpse.remove();
+            world.setChunkForceLoaded(chunkX, chunkZ, false);
         }
     }
     public List<Entity> getPlayerCorpses() {
         return playerCorpses;
     }
     public void clearPlayerCorpses() {
-        for (Entity corpse : playerCorpses) {
-            Chunk chunk = corpse.getLocation().getChunk();
-            if (!chunk.isLoaded()) {
-                chunk.load();
-            }
-            corpse.remove();
+        for (Entity corpse : new ArrayList<>(playerCorpses)) {
+            removeCorpse(corpse);
         }
-        playerCorpses.clear();
     }
 }

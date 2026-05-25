@@ -2,30 +2,36 @@ package ikeyler.survutil.game.player;
 
 import ikeyler.survutil.Main;
 import ikeyler.survutil.game.Game;
+import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public class GamePlayer {
     private final Game game;
     private Player player;
     private final UUID playerUUID;
-    private PlayerState state = PlayerState.PLAYING;
+    private PlayerState state;
     private boolean canJoinGame = true;
     private boolean alive = true;
     private int rescueProgress = 0;
     private boolean rescueAvailable = true;
     private boolean rescued = false;
+    private boolean pendingRespawn = false;
+    private Location pendingRespawnLoc = null;
     public GamePlayer(Game game, Player player) {
         this.game = game;
         this.player = player;
         this.playerUUID = player.getUniqueId();
+        this.state = PlayerState.PLAYING;
     }
     public GamePlayer(Game game, OfflinePlayer offlinePlayer) {
         this.game = game;
         this.player = null;
         this.playerUUID = offlinePlayer.getUniqueId();
+        this.state = PlayerState.OFFLINE;
     }
     public void updatePlayer(Player player) {
         if (!playerUUID.equals(player.getUniqueId())) {
@@ -38,6 +44,10 @@ public class GamePlayer {
     }
     public Player getPlayer() {
         return player;
+    }
+    public Optional<Player> getPlayerOpt() {
+        if (player != null && player.isOnline()) return Optional.of(player);
+        return Optional.empty();
     }
     public UUID getPlayerUUID() {
         return playerUUID;
@@ -58,7 +68,7 @@ public class GamePlayer {
         return alive;
     }
     public boolean isPlaying() {
-        return alive && state == PlayerState.PLAYING;
+        return player != null && alive && state == PlayerState.PLAYING;
     }
     public void setState(PlayerState state) {
         if (!game.isRunning()) return;
@@ -82,9 +92,20 @@ public class GamePlayer {
     public void setRescued(boolean rescued) {
         this.rescued = rescued;
     }
+    public boolean isPendingRespawn() {
+        return pendingRespawn;
+    }
+    public Location getPendingRespawnLoc() {
+        return pendingRespawnLoc;
+    }
+    public void setPendingRespawn(boolean pendingRespawn, Location location) {
+        this.pendingRespawn = pendingRespawn;
+        this.pendingRespawnLoc = location;
+    }
     @Override
     public String toString() {
-        return String.format("GamePlayer{name='%s', state='%s', alive=%s, rescueProgress=%d, rescueAvailable=%s, rescued=%s}",
-                player.getName(), state.toString(), alive, rescueProgress, rescueAvailable, rescued);
+        String name = player != null ? player.getName() : "null (" + playerUUID + ")";
+        return String.format("GamePlayer{name='%s', state='%s', alive=%s, rescueProgress=%d, rescueAvailable=%s, rescued=%s, canJoinGame=%s}",
+                name, state.toString(), alive, rescueProgress, rescueAvailable, rescued, canJoinGame);
     }
 }
